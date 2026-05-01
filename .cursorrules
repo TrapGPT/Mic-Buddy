@@ -1,0 +1,27 @@
+# Mic Buddy (Powered by TrackBarz) - Project Rules
+
+## Stack
+- Next.js 14 App Router, TypeScript strict mode
+- Prisma + Postgres, Clerk auth
+- Tailwind + shadcn/ui components
+- Zod for validation, React Hook Form for forms
+
+## Critical Conventions
+- NEVER use setInterval or Date.now() for audio timing
+- ALWAYS use audioContext.currentTime + requestAnimationFrame for audio-synced UI
+- API routes return { error: { code, message, details? } } on failure
+- All API inputs validated with Zod schemas from /shared
+- Prisma User row is upserted by Clerk userId on first authenticated request
+
+## File Structure
+- /app = Next.js pages + route handlers
+- /components = shared UI (shadcn-based)
+- /lib = db client, auth helpers, utils
+- /lib/audio = all Web Audio API code (Day 3+)
+- /prisma = schema, migrations, seed
+- /shared = Zod schemas, shared types
+
+## Never
+- Commit .env or secrets
+- Write tests unless asked (Day 1-10 is MVP sprint, not TDD)
+- Add dependencies without checking if already installed

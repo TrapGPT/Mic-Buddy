@@ -47,6 +47,13 @@ The single most important quality bar: the bar counter MUST feel locked to the b
 - Session ownership checks: a user can only read/write their own Session rows — verify userId match before any mutation
 - Use NextResponse.json() — never raw Response objects
 
+## Patterns Established (Day 2)
+- Ownership check helper lives inline per route (getOwnedSession) — extract to /lib if it repeats 3+ times
+- Server Components fetch data, serialize dates, pass to Client Components
+- Typed API client in /lib/api-client.ts is the ONLY way client code talks to /api
+- Toasts via sonner for all success/error feedback
+- Inline edit pattern: click-to-edit with Enter to save, Escape to cancel
+
 ## Data Model Rules
 - Prisma User has clerkUserId (unique) — this is the bridge, not Clerk's id directly in other tables
 - Every user-owned row has userId referencing User.id (not clerkUserId)

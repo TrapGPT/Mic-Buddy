@@ -1,8 +1,10 @@
-import Link from 'next/link';
+import { notFound, redirect } from 'next/navigation';
 
-import { SessionDetailPanel } from '@/components/sessions/session-detail-panel';
+import type { Session } from '@/lib/api-client';
 import { getOrCreateUser } from '@/lib/auth';
-import { sessionIdParamSchema } from '@/shared/schemas/session';
+import { prisma } from '@/lib/db';
+
+import { SessionDetailClient } from './SessionDetailClient';
 
 export default async function SessionDetailPage({
   params,
@@ -10,32 +12,22 @@ export default async function SessionDetailPage({
   params: { id: string };
 }) {
   const user = await getOrCreateUser();
-  if (!user) {
-    return (
-      <div className="p-8">
-        <p className="text-sm text-muted-foreground">Not signed in</p>
-        <Link href="/" className="mt-2 inline-block text-sm underline">
-          Go home
-        </Link>
-      </div>
-    );
-  }
+  if (!user) redirect('/sign-in');
 
-  const parsed = sessionIdParamSchema.safeParse(params);
-  if (!parsed.success) {
-    return (
-      <div className="p-8">
-        <p className="text-sm text-destructive">Invalid session id</p>
-        <Link href="/dashboard" className="mt-2 inline-block text-sm underline">
-          Back to dashboard
-        </Link>
-      </div>
-    );
-  }
+  const session = await prisma.session.findUnique({
+    where: { id: params.id },
+  });
 
-  return (
-    <div className="min-h-screen bg-background p-8">
-      <SessionDetailPanel sessionId={parsed.data.id} />
-    </div>
-  );
+  if (!session) notFound();
+  if (session.userId !== user.id) notFound(); // hide existence from other users
+
+  const serialized: Session = {
+    id: session.id,
+    title: session.title,
+    bpm: session.bpm,
+    createdAt: session.createdAt.toISOString(),
+    updatedAt: session.updatedAt.toISOString(),
+  };
+
+  return <SessionDetailClient session={serialized} />;
 }

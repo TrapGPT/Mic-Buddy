@@ -29,6 +29,14 @@ function sessionIdOr400(id: string | undefined) {
   return id;
 }
 
+/** Same 404 for missing session or wrong owner — avoid existence leaks (bonus security test). */
+function ownedSessionMissingResponse() {
+  return NextResponse.json(
+    apiError('NOT_FOUND', 'Session not found'),
+    { status: 404 }
+  );
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
@@ -50,11 +58,7 @@ export async function GET(
 
   const result = await getOwnedSession(user.id, sessionId);
   if ('error' in result) {
-    const status = result.error === 'NOT_FOUND' ? 404 : 403;
-    return NextResponse.json(
-      apiError(result.error, `Session ${result.error.toLowerCase()}`),
-      { status }
-    );
+    return ownedSessionMissingResponse();
   }
 
   return NextResponse.json({ session: result.session });
@@ -81,11 +85,7 @@ export async function PATCH(
 
   const result = await getOwnedSession(user.id, sessionId);
   if ('error' in result) {
-    const status = result.error === 'NOT_FOUND' ? 404 : 403;
-    return NextResponse.json(
-      apiError(result.error, `Session ${result.error.toLowerCase()}`),
-      { status }
-    );
+    return ownedSessionMissingResponse();
   }
 
   let body: unknown;
@@ -135,11 +135,7 @@ export async function DELETE(
 
   const result = await getOwnedSession(user.id, sessionId);
   if ('error' in result) {
-    const status = result.error === 'NOT_FOUND' ? 404 : 403;
-    return NextResponse.json(
-      apiError(result.error, `Session ${result.error.toLowerCase()}`),
-      { status }
-    );
+    return ownedSessionMissingResponse();
   }
 
   await prisma.session.delete({ where: { id: sessionId } });

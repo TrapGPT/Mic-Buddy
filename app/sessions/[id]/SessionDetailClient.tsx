@@ -55,8 +55,10 @@ export function SessionDetailClient({ session }: { session: Session }) {
   async function handleDelete() {
     try {
       await api.sessions.delete(session.id);
+      setDeleteOpen(false);
       toast.success('Session deleted');
       router.push('/dashboard');
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete');
     }
@@ -77,14 +79,22 @@ export function SessionDetailClient({ session }: { session: Session }) {
                 className="w-64"
                 autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') saveTitle();
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void saveTitle();
+                  }
                   if (e.key === 'Escape') {
                     setTitle(session.title);
                     setEditing(false);
                   }
                 }}
               />
-              <Button onClick={saveTitle} disabled={saving} size="sm">
+              <Button
+                type="button"
+                onClick={() => void saveTitle()}
+                disabled={saving}
+                size="sm"
+              >
                 {saving ? 'Saving…' : 'Save'}
               </Button>
             </>

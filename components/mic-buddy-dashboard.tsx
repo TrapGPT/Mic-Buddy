@@ -34,6 +34,34 @@ import { useMicMonitor } from '@/hooks/use-mic-monitor';
 import { cn } from '@/lib/utils';
 
 const DEFAULT_DEVICE_VALUE = '__default__';
+/** Radix Select forbids `value=""`; some browsers expose inputs with empty deviceId before labels resolve. */
+const MIC_EMPTY_DEVICE_SENTINEL = '__micbuddy_mic__:';
+
+function micOptionValue(deviceId: string, index: number) {
+  return deviceId ? deviceId : `${MIC_EMPTY_DEVICE_SENTINEL}${index}`;
+}
+
+function resolveMicSelection(
+  value: string,
+  inputs: { deviceId: string }[]
+): string {
+  if (value === DEFAULT_DEVICE_VALUE) return '';
+  if (value.startsWith(MIC_EMPTY_DEVICE_SENTINEL)) {
+    const idx = Number(value.slice(MIC_EMPTY_DEVICE_SENTINEL.length));
+    return inputs[idx]?.deviceId ?? '';
+  }
+  return value;
+}
+
+function micSelectValue(
+  selectedDeviceId: string,
+  inputs: { deviceId: string }[]
+) {
+  if (!selectedDeviceId) return DEFAULT_DEVICE_VALUE;
+  if (inputs.some((i) => i.deviceId === selectedDeviceId))
+    return selectedDeviceId;
+  return DEFAULT_DEVICE_VALUE;
+}
 
 export function MicBuddyDashboard() {
   const [muted, setMuted] = React.useState(false);
@@ -147,11 +175,9 @@ export function MicBuddyDashboard() {
               <div className="space-y-2">
                 <Label htmlFor="mic-input">Microphone</Label>
                 <Select
-                  value={
-                    selectedDeviceId ? selectedDeviceId : DEFAULT_DEVICE_VALUE
-                  }
+                  value={micSelectValue(selectedDeviceId, inputs)}
                   onValueChange={(value) =>
-                    selectDevice(value === DEFAULT_DEVICE_VALUE ? '' : value)
+                    selectDevice(resolveMicSelection(value, inputs))
                   }
                   disabled={starting}
                 >
@@ -162,8 +188,11 @@ export function MicBuddyDashboard() {
                     <SelectItem value={DEFAULT_DEVICE_VALUE}>
                       System default
                     </SelectItem>
-                    {inputs.map((d) => (
-                      <SelectItem key={d.deviceId} value={d.deviceId}>
+                    {inputs.map((d, index) => (
+                      <SelectItem
+                        key={micOptionValue(d.deviceId, index)}
+                        value={micOptionValue(d.deviceId, index)}
+                      >
                         {d.label}
                       </SelectItem>
                     ))}

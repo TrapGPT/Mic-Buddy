@@ -1,27 +1,130 @@
-# Mic Buddy (Powered by TrackBarz) - Project Rules
+# Mic Buddy (Powered by TrackBarz) — Cursor Project Rules
 
-## Stack
-- Next.js 14 App Router, TypeScript strict mode
-- Prisma + Postgres, Clerk auth
-- Tailwind + shadcn/ui components
-- Zod for validation, React Hook Form for forms
+You are assisting on a 10-day MVP sprint for Mic Buddy, a web app that detects BPM in uploaded beats, counts bars in real-time with tight audio-synced UI, lets users mark song sections (Intro/Verse/Hook/Bridge/Outro), and provides a sectioned lyric notebook.
 
-## Critical Conventions
-- NEVER use setInterval or Date.now() for audio timing
-- ALWAYS use audioContext.currentTime + requestAnimationFrame for audio-synced UI
-- API routes return { error: { code, message, details? } } on failure
-- All API inputs validated with Zod schemas from /shared
-- Prisma User row is upserted by Clerk userId on first authenticated request
+The single most important quality bar: the bar counter MUST feel locked to the beat. Audio timing precision beats every other concern.
+
+## Stack (Non-Negotiable)
+- Next.js 14+ App Router, TypeScript strict mode
+- React Server Components by default; 'use client' only when necessary
+- Prisma ORM + PostgreSQL (local via Docker Compose)
+- Clerk for authentication (v5+ syntax)
+- Tailwind CSS + shadcn/ui components
+- Zod for all input validation
+- React Hook Form for forms
+- pnpm as package manager
+- Web Audio API for all audio work (no external audio frameworks unless explicitly approved)
+- web-audio-beat-detector for BPM detection (approved dependency)
+
+## Critical Audio Conventions (Days 3+)
+- NEVER use setInterval, setTimeout, or Date.now() for audio-synced UI updates
+- ALWAYS drive audio-synced UI from audioContext.currentTime inside a requestAnimationFrame loop
+- Bar position math: barDuration = (60 / bpm) * beatsPerBar; currentBar = Math.floor(currentTime / barDuration)
+- Expose a manual downbeat offset (±ms) on every session — auto-detection will be wrong sometimes
+- Always include a "Tap Tempo" fallback path; auto-BPM is a hint, not truth
+- Audio code lives in /lib/audio/* — never scatter AudioContext logic across components
+- Single shared AudioContext per page; lazily instantiated on first user gesture (browser policy)
+- Prefer AudioBufferSourceNode for playback during the MVP; migrate to AudioWorklet only if latency demands it
 
 ## File Structure
-- /app = Next.js pages + route handlers
-- /components = shared UI (shadcn-based)
-- /lib = db client, auth helpers, utils
-- /lib/audio = all Web Audio API code (Day 3+)
-- /prisma = schema, migrations, seed
-- /shared = Zod schemas, shared types
+- /app — Next.js pages and route handlers
+- /app/api — REST route handlers
+- /components — shared UI (prefix shadcn primitives with "ui/")
+- /components/audio — bar counter, beat indicator, section timeline
+- /lib/db.ts — Prisma singleton
+- /lib/auth.ts — Clerk-to-Prisma user bridge (getOrCreateUser)
+- /lib/audio — all Web Audio API logic (engine, bpm, bars, playback)
+- /lib/utils.ts — cn() helper and small utilities only
+- /prisma — schema.prisma, migrations, seed.ts
+- /shared — Zod schemas and shared TypeScript types (imported by both client and server)
 
-## Never
-- Commit .env or secrets
-- Write tests unless asked (Day 1-10 is MVP sprint, not TDD)
-- Add dependencies without checking if already installed
+## API Conventions
+- Every route handler validates input with Zod before touching the DB
+- Error response shape is ALWAYS:
+  { error: { code: string, message: string, details?: unknown } }
+- Status codes: 400 for validation, 401 for unauth, 403 for forbidden, 404 for not found, 500 only for true server failures
+- Every protected route calls getOrCreateUser() and returns 401 if null
+- Session ownership checks: a user can only read/write their own Session rows — verify userId match before any mutation
+- Use NextResponse.json() — never raw Response objects
+
+## Data Model Rules
+- Prisma User has clerkUserId (unique) — this is the bridge, not Clerk's id directly in other tables
+- Every user-owned row has userId referencing User.id (not clerkUserId)
+- Cascade deletes: deleting a User cascades to Sessions; deleting a Session cascades to Markers, Notes, LyricBlocks
+- Timestamps: createdAt @default(now()), updatedAt @updatedAt on all mutable tables
+- Never expose clerkUserId to the client — send only our internal User.id if needed
+
+## Client vs Server Components
+- Default to Server Components — they're faster and simpler
+- Add 'use client' only when you need: useState, useEffect, event handlers, browser APIs (AudioContext, MediaRecorder), or client-only libraries
+- Audio components are always client components
+- Pages that fetch data should be server components that pass data to client children
+
+## UI Conventions
+- shadcn/ui components live in /components/ui — do not modify them directly; wrap if you need custom behavior
+- Use the cn() utility from /lib/utils.ts for conditional classNames
+- Mic Buddy palette (from brand mockups):
+  - Background: cream (#FAF6E9 or similar warm off-white)
+  - Primary: navy (#1E2A5E)
+  - Accent: red/orange for recording states (#E74C3C)
+- The bar counter display is the signature screen — giant numerals, minimal chrome, always centered
+- Mobile-first: test at 375px width before desktop
+
+## State Management
+- Use React state (useState, useReducer) for local component state
+- Use React Server Components + Server Actions or route handlers for server state — no Redux, no Zustand for Day 1–10
+- Audio engine state (playing, currentTime, currentBar, bpm) lives in a single custom hook (useAudioEngine) consumed by components
+
+## Error Handling
+- Wrap all route handlers in try/catch; log server errors to console with context
+- Client-side, use react-hot-toast or shadcn's Sonner for user-facing errors
+- Never swallow errors silently
+- AudioContext failures (user denied permission, unsupported browser) must show a clear UI message with next steps
+
+## Performance Non-Negotiables
+- The requestAnimationFrame loop driving the bar counter must not allocate objects per frame — reuse references
+- No console.log calls in audio hot paths (ship with them stripped)
+- Prisma queries should use select/include explicitly — never return entire rows by default when only a few fields are needed
+- Image uploads: enforce max 20MB server-side; reject anything else with a clear error
+
+## Security
+- Never commit .env, .env.local, or any file with secrets
+- Never log Clerk tokens, user emails, or session IDs in production code
+- All API inputs go through Zod — no trusting client shapes
+- Session ownership must be verified server-side on every mutation (defense in depth, even though middleware protects the route)
+
+## What NOT to Do (10-Day Sprint Discipline)
+- Do not write tests unless I explicitly ask — this is an MVP sprint, not TDD
+- Do not add dependencies without asking — check package.json first and propose before installing
+- Do not refactor working code to be "cleaner" unless I ask
+- Do not scaffold features beyond the current day's scope (see Day Plan section)
+- Do not use AI/LLM APIs, Whisper, or any transcription/generation service in Days 1–10 — those are Phase 2
+- Do not introduce Redux, Zustand, tRPC, or GraphQL — REST route handlers only
+- Do not use Server Actions for Day 1–2 (route handlers are more debuggable early on)
+- Do not use localStorage or sessionStorage (not supported in some deployment contexts) — use React state
+
+## 10-Day Scope (For Your Awareness)
+- Day 1: Scaffold, auth, Clerk-Prisma user bridge, empty dashboard ← current day unless told otherwise
+- Day 2: Session CRUD, dashboard list, session detail shell
+- Day 3: Audio upload, basic playback via Web Audio API
+- Day 4: BPM detection, bar grid math, tap tempo, downbeat offset
+- Day 5: Real-time bar counter UI (the signature screen)
+- Day 6: Section markers, timeline strip, current-section label
+- Day 7: Sectioned lyric notebook with autosave
+- Day 8: Loop section, keyboard shortcuts, polish
+- Day 9: Design pass, mobile, PWA manifest, brand application
+- Day 10: Deploy (Vercel + Neon), end-to-end testing, demo video
+
+If I ask for something from a later day, remind me of the scope and ask if I want to pull it forward.
+
+## Communication Style
+- Be direct and concise; this is a fast sprint
+- When proposing solutions, lead with the code, then brief rationale
+- Call out risks explicitly (e.g., "this will drift by ~20ms per minute because...")
+- If a request conflicts with these rules, push back before complying
+- If unsure between two approaches, ask one clarifying question rather than guessing
+
+## Project Voice
+- Brand is Mic Buddy (front-facing) powered by TrackBarz (engine layer)
+- Copy should feel like a helpful studio buddy — warm but not cheesy
+- Developer voice in comments: concise, professional, no filler

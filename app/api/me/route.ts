@@ -9,5 +9,11 @@ export async function GET() {
       { status: 401 }
     );
   }
-  return NextResponse.json({ user });
+  return NextResponse.json({
+    user: {
+      id: user.id,
+      email: user.email,
+      createdAt: user.createdAt,
+    },
+  });
 }
